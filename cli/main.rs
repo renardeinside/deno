@@ -1,69 +1,40 @@
 // Copyright 2018-2025 the Deno authors. MIT license.
 
-mod args;
-mod cache;
-mod cdp;
-mod emit;
-mod factory;
-mod file_fetcher;
-mod graph_container;
-mod graph_util;
-mod http_util;
-mod js;
-mod jsr;
-mod lsp;
-mod module_loader;
-mod node;
-mod npm;
-mod ops;
-mod resolver;
-mod standalone;
-mod task_runner;
-mod tools;
-mod tsc;
-mod util;
-mod worker;
-
-pub mod sys {
-  #[allow(clippy::disallowed_types)] // ok, definition
-  pub type CliSys = sys_traits::impls::RealSys;
-}
-
 use std::env;
 use std::future::Future;
 use std::io::IsTerminal;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
-
-use args::TaskFlags;
 use deno_core::anyhow::Context;
-use deno_core::error::AnyError;
-use deno_core::error::CoreError;
+use deno_core::error::{AnyError, CoreError};
 use deno_core::futures::FutureExt;
 use deno_core::unsync::JoinHandle;
+use deno_terminal::colors;
+use deno::args::{flags_from_vec, DenoSubcommand, Flags, TaskFlags};
+use deno::{args, lsp, tools, tsc, util, worker};
+use deno::npm::ResolveSnapshotError;
+use deno::util::display;
+use deno::util::draw_thread::DrawThread;
+use deno::util::v8::{get_v8_flags_from_env, init_v8_flags};
 use deno_lib::util::result::any_and_jserrorbox_downcast_ref;
-use deno_resolver::npm::ByonmResolvePkgFolderFromDenoReqError;
-use deno_resolver::npm::ResolvePkgFolderFromDenoReqError;
+use deno_resolver::npm::{ByonmResolvePkgFolderFromDenoReqError, ResolvePkgFolderFromDenoReqError};
 use deno_runtime::fmt_errors::format_js_error;
 use deno_runtime::tokio_util::create_and_run_current_thread_with_maybe_metrics;
 use deno_runtime::WorkerExecutionMode;
-pub use deno_runtime::UNSTABLE_GRANULAR_FLAGS;
 use deno_telemetry::OtelConfig;
-use deno_terminal::colors;
-use factory::CliFactory;
 
 const MODULE_NOT_FOUND: &str = "Module not found";
 const UNSUPPORTED_SCHEME: &str = "Unsupported scheme";
 
-use self::npm::ResolveSnapshotError;
-use self::util::draw_thread::DrawThread;
-use crate::args::flags_from_vec;
-use crate::args::DenoSubcommand;
-use crate::args::Flags;
-use crate::util::display;
-use crate::util::v8::get_v8_flags_from_env;
-use crate::util::v8::init_v8_flags;
+// use self::npm::ResolveSnapshotError;
+// use self::util::draw_thread::DrawThread;
+// use crate::args::flags_from_vec;
+// use crate::args::DenoSubcommand;
+// use crate::args::Flags;
+// use crate::util::display;
+// use crate::util::v8::get_v8_flags_from_env;
+// use crate::util::v8::init_v8_flags;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -392,14 +363,6 @@ fn exit_for_error(error: AnyError) -> ! {
   }
 
   exit_with_message(&error_string, error_code);
-}
-
-pub(crate) fn unstable_exit_cb(feature: &str, api_name: &str) {
-  log::error!(
-    "Unstable API '{api_name}'. The `--unstable-{}` flag must be provided.",
-    feature
-  );
-  deno_runtime::exit(70);
 }
 
 pub fn main() {

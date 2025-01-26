@@ -16,6 +16,7 @@ use crate::module_loader::ModuleLoadPreparer;
 use crate::util::fs::collect_specifiers;
 use crate::util::path::is_script_ext;
 
+#[allow(async_fn_in_trait)]
 pub trait ModuleGraphContainer: Clone + 'static {
   /// Acquires a permit to modify the module graph without other code
   /// having the chance to modify it. In the meantime, other code may
